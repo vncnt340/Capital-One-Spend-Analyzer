@@ -1,20 +1,20 @@
 import sys
+import os
 
-# macOS: initialize NSApplication.sharedApplication via ctypes BEFORE importing
-# PyQt6. Without this, CFBundleGetMainBundle() returns NULL inside Qt's Darwin
-# permission plugin static initializer when the app is translocated by Gatekeeper,
-# which causes a SIGSEGV crash (KERN_INVALID_ADDRESS at 0x8).
+# macOS: set QT_CONF_PATH before importing PyQt6 to prevent a crash when the app
+# is Gatekeeper-translocated (runs from /private/var/folders/ as Background proc).
+# Qt's Darwin permission plugins are baked into QtCore.abi3.so as static
+# initializers; they call QLibraryInfoPrivate::paths() → CFBundleGetMainBundle(),
+# which returns NULL in the translocated context → SIGSEGV at 0x8.
+# Setting QT_CONF_PATH gives Qt the prefix/plugin paths via getenv() before the
+# initializer runs, so it returns early without ever touching CFBundle.
 if sys.platform == "darwin":
     try:
-        import ctypes
-        _objc = ctypes.cdll.LoadLibrary("/usr/lib/libobjc.A.dylib")
-        _objc.objc_getClass.restype = ctypes.c_void_p
-        _objc.sel_registerName.restype = ctypes.c_void_p
-        _objc.objc_msgSend.restype = ctypes.c_void_p
-        _cls = _objc.objc_getClass(b"NSApplication")
-        _sel = _objc.sel_registerName(b"sharedApplication")
-        _objc.objc_msgSend(_cls, _sel)
-        del _objc, _cls, _sel, ctypes
+        _exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        _contents = os.path.dirname(_exe_dir)  # .app/Contents/
+        _qt_conf = os.path.join(_contents, "Resources", "qt.conf")
+        if os.path.exists(_qt_conf):
+            os.environ.setdefault("QT_CONF_PATH", _qt_conf)
     except Exception:
         pass
 
