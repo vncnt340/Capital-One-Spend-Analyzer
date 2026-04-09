@@ -1,4 +1,23 @@
 import sys
+
+# macOS: initialize NSApplication.sharedApplication via ctypes BEFORE importing
+# PyQt6. Without this, CFBundleGetMainBundle() returns NULL inside Qt's Darwin
+# permission plugin static initializer when the app is translocated by Gatekeeper,
+# which causes a SIGSEGV crash (KERN_INVALID_ADDRESS at 0x8).
+if sys.platform == "darwin":
+    try:
+        import ctypes
+        _objc = ctypes.cdll.LoadLibrary("/usr/lib/libobjc.A.dylib")
+        _objc.objc_getClass.restype = ctypes.c_void_p
+        _objc.sel_registerName.restype = ctypes.c_void_p
+        _objc.objc_msgSend.restype = ctypes.c_void_p
+        _cls = _objc.objc_getClass(b"NSApplication")
+        _sel = _objc.sel_registerName(b"sharedApplication")
+        _objc.objc_msgSend(_cls, _sel)
+        del _objc, _cls, _sel, ctypes
+    except Exception:
+        pass
+
 import matplotlib
 matplotlib.use("QtAgg")  # Must be set before any other matplotlib imports
 import matplotlib.pyplot as plt
