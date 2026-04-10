@@ -10,6 +10,7 @@ from core.store import AppStore
 from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, CHART_COLORS
 from ui.widgets.chart_canvas import ChartCanvas
+from ui.widgets.metric_card import MetricCard
 from ui.widgets.sortable_table import SortableTable
 
 
@@ -34,6 +35,17 @@ class MerchantsPage(QWidget):
         hint.setStyleSheet("color: #666666; font-size: 12px;")
         layout.addWidget(hint)
 
+        # Summary cards row (matches Overview style)
+        cards_row = QHBoxLayout()
+        cards_row.setSpacing(12)
+        self._pill_spend = MetricCard("Total Spend")
+        self._pill_merchants = MetricCard("Merchants")
+        self._pill_txns = MetricCard("Transactions")
+        self._pill_avg = MetricCard("Avg Transaction")
+        for card in (self._pill_spend, self._pill_merchants, self._pill_txns, self._pill_avg):
+            cards_row.addWidget(card)
+        layout.addLayout(cards_row)
+
         splitter = QSplitter(Qt.Orientation.Vertical)
 
         # Table
@@ -41,6 +53,7 @@ class MerchantsPage(QWidget):
             ["Merchant", "Sub-Category", "Total Spend", "# Transactions", "Avg Transaction", "Last Seen"]
         )
         self._table.row_clicked.connect(self._on_merchant_clicked)
+        self._table.filter_changed.connect(self._update_pills)
         splitter.addWidget(self._table)
 
         # Detail panel
@@ -77,14 +90,38 @@ class MerchantsPage(QWidget):
                 f"${r['avg_transaction']:,.2f}",
                 str(r["last_seen"]),
             ])
-        self._table.populate(rows, [
+
+        alignments = [
             Qt.AlignmentFlag.AlignVCenter,
             Qt.AlignmentFlag.AlignVCenter,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
             Qt.AlignmentFlag.AlignVCenter,
-        ])
+        ]
+        self._table.populate(rows, alignments)
+        self._update_pills()
+
+    @safe_slot
+    def _update_pills(self) -> None:
+        spend_vals = self._table.visible_values(2)   # "Total Spend" col
+        txn_vals = self._table.visible_values(3)      # "# Transactions" col
+
+        def parse_money(s: str) -> float:
+            try:
+                return float(s.replace("$", "").replace(",", ""))
+            except ValueError:
+                return 0.0
+
+        total_spend = sum(parse_money(v) for v in spend_vals)
+        total_txns = sum(int(v) for v in txn_vals if v.isdigit())
+        merchant_count = len(spend_vals)
+        avg_tx = total_spend / total_txns if total_txns else 0.0
+
+        self._pill_spend.set_value(f"${total_spend:,.2f}")
+        self._pill_merchants.set_value(str(merchant_count))
+        self._pill_txns.set_value(str(total_txns))
+        self._pill_avg.set_value(f"${avg_tx:,.2f}")
 
     def _on_merchant_clicked(self, row: int) -> None:
         merchant = self._table.item(row, 0)

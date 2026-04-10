@@ -5,7 +5,7 @@ import re
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, QAbstractTableModel, QModelIndex, pyqtSignal
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton,
     QTableView, QHeaderView, QAbstractItemView, QMenu, QApplication,
 )
 
@@ -30,7 +30,9 @@ class _TableModel(QAbstractTableModel):
         self._columns = columns
         self._rows: list[list[str]] = []
         self._alignments: list[Qt.AlignmentFlag] = []
-        self._row_colors: list[str | None] = []  # per-row foreground hex or None
+        self._row_colors: list[str | None] = []      # per-row foreground hex or None
+        self._row_backgrounds: list[str | None] = [] # per-row background hex or None
+        self._row_bold: list[bool] = []               # per-row bold flag
 
     def rowCount(self, parent=QModelIndex()) -> int:
         return len(self._rows)
@@ -53,6 +55,18 @@ class _TableModel(QAbstractTableModel):
                 color = self._row_colors[index.row()]
                 if color:
                     return QColor(color)
+        if role == Qt.ItemDataRole.BackgroundRole:
+            from PyQt6.QtGui import QColor
+            if self._row_backgrounds and index.row() < len(self._row_backgrounds):
+                bg = self._row_backgrounds[index.row()]
+                if bg:
+                    return QColor(bg)
+        if role == Qt.ItemDataRole.FontRole:
+            from PyQt6.QtGui import QFont
+            if self._row_bold and index.row() < len(self._row_bold) and self._row_bold[index.row()]:
+                f = QFont()
+                f.setBold(True)
+                return f
         return None
 
     def headerData(self, section: int, orientation: Qt.Orientation, role=Qt.ItemDataRole.DisplayRole):
@@ -61,11 +75,15 @@ class _TableModel(QAbstractTableModel):
         return None
 
     def load(self, rows: list[list[str]], alignments: list[Qt.AlignmentFlag] | None = None,
-             row_colors: list[str | None] | None = None) -> None:
+             row_colors: list[str | None] | None = None,
+             row_backgrounds: list[str | None] | None = None,
+             row_bold: list[bool] | None = None) -> None:
         self.beginResetModel()
         self._rows = rows
         self._alignments = alignments or []
         self._row_colors = row_colors or []
+        self._row_backgrounds = row_backgrounds or []
+        self._row_bold = row_bold or []
         self.endResetModel()
 
 
@@ -125,11 +143,22 @@ class SortableTable(QWidget):
 
         for col_name in self._columns:
             f = QLineEdit(self._filter_bar)
-            f.setPlaceholderText(f"Filter…")
+            f.setPlaceholderText("Filter…")
             f.setFixedHeight(26)
             f.setStyleSheet("color: #111827; background: #FFFFFF; border: 1px solid #E2E6EE; border-radius: 4px; padding: 2px 6px; font-size: 11px;")
             f.textChanged.connect(self._apply_filters)
             self._filters.append(f)
+
+        self._reset_btn = QPushButton("✕ Reset", self._filter_bar)
+        self._reset_btn.setFixedSize(64, 26)
+        self._reset_btn.setStyleSheet(
+            "QPushButton { color: #6B7280; background: #F3F4F6; border: 1px solid #E2E6EE; "
+            "border-radius: 4px; font-size: 11px; padding: 0 6px; }"
+            "QPushButton:hover { background: #E5E7EB; color: #111827; }"
+        )
+        self._reset_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._reset_btn.hide()
+        self._reset_btn.clicked.connect(self.reset_filters)
 
         layout.addWidget(self._filter_bar)
 
@@ -160,16 +189,35 @@ class SortableTable(QWidget):
 
         layout.addWidget(self._view)
 
+    _RESET_BTN_W = 68  # width reserved for reset button
+
     def _sync_filters(self) -> None:
         header = self._view.horizontalHeader()
+        any_active = any(f.text() for f in self._filters)
+        self._reset_btn.setVisible(any_active)
+        reserve = self._RESET_BTN_W if any_active else 0
         x = 0
         for i, f in enumerate(self._filters):
             w = header.sectionSize(i)
-            f.setGeometry(x, 2, w - 2, 26)
+            # shrink last column's filter to leave room for reset button
+            draw_w = max(0, w - 2 - (reserve if i == len(self._filters) - 1 else 0))
+            f.setGeometry(x, 2, draw_w, 26)
             x += w
+        if any_active:
+            self._reset_btn.move(x - self._RESET_BTN_W, 2)
 
     def _apply_filters(self) -> None:
         self._proxy.set_col_filters([f.text() for f in self._filters])
+        self._sync_filters()
+        self.filter_changed.emit()
+
+    def reset_filters(self) -> None:
+        for f in self._filters:
+            f.blockSignals(True)
+            f.clear()
+            f.blockSignals(False)
+        self._proxy.set_col_filters([""] * len(self._filters))
+        self._sync_filters()
         self.filter_changed.emit()
 
     def _show_context_menu(self, pos) -> None:
@@ -228,8 +276,11 @@ class SortableTable(QWidget):
     _SPEND_COLS = {"net spend", "total spend", "amount", "net"}
 
     def populate(self, rows: list[list], alignments: list[Qt.AlignmentFlag] | None = None,
-                 row_colors: list[str | None] | None = None) -> None:
-        self._model.load([[str(v) for v in row] for row in rows], alignments, row_colors)
+                 row_colors: list[str | None] | None = None,
+                 row_backgrounds: list[str | None] | None = None,
+                 row_bold: list[bool] | None = None) -> None:
+        self._model.load([[str(v) for v in row] for row in rows], alignments, row_colors,
+                         row_backgrounds, row_bold)
         self._view.resizeColumnsToContents()
         self._sync_filters()
         for f in self._filters:
