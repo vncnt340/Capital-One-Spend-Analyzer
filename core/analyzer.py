@@ -136,7 +136,7 @@ def detect_subscriptions(df: pd.DataFrame) -> list[dict]:
 
         deltas = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
         mean_delta = statistics.mean(deltas)
-        cv = statistics.stdev(deltas) / mean_delta if len(deltas) > 1 else 0.0
+        cv = statistics.stdev(deltas) / mean_delta if (len(deltas) > 1 and mean_delta > 0) else 0.0
 
         # Classify cadence
         if 25 <= mean_delta <= 40:
