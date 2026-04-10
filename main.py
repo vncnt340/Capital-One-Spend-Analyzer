@@ -37,9 +37,10 @@ plt.rcParams.update({
     "axes.spines.right": False,
 })
 
+import traceback
 import threading
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.store import AppStore
 from core.updater import check_for_update
@@ -47,6 +48,24 @@ from ui.main_window import MainWindow
 from ui.theme import app_stylesheet
 from ui.update_dialog import UpdateDialog
 from version import __version__, GITHUB_REPO
+
+
+class _App(QApplication):
+    """QApplication subclass that catches Python exceptions in Qt slots/events
+    and shows them as error dialogs instead of calling abort()."""
+
+    def notify(self, receiver, event):
+        try:
+            return super().notify(receiver, event)
+        except Exception:
+            msg = traceback.format_exc()
+            dlg = QMessageBox()
+            dlg.setWindowTitle("Unexpected Error")
+            dlg.setText("An error occurred. The app will continue running.")
+            dlg.setDetailedText(msg)
+            dlg.setIcon(QMessageBox.Icon.Critical)
+            dlg.exec()
+            return False
 
 
 def _check_update_async(window: MainWindow) -> None:
@@ -57,7 +76,7 @@ def _check_update_async(window: MainWindow) -> None:
 
 
 def main() -> None:
-    app = QApplication(sys.argv)
+    app = _App(sys.argv)
     app.setApplicationName("SpendAnalyzer")
     app.setOrganizationName("SpendAnalyzer")
     app.setStyleSheet(app_stylesheet())
