@@ -39,7 +39,7 @@ plt.rcParams.update({
 
 import traceback
 import threading
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QObject, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from core.store import AppStore
@@ -68,11 +68,8 @@ class _App(QApplication):
             return False
 
 
-def _check_update_async(window: MainWindow) -> None:
-    """Run update check in background thread; show dialog on main thread if update found."""
-    info = check_for_update(GITHUB_REPO, __version__)
-    if info:
-        QTimer.singleShot(0, lambda: UpdateDialog(info, window).exec())
+class _UpdateSignal(QObject):
+    found = pyqtSignal(dict)
 
 
 def main() -> None:
@@ -85,10 +82,18 @@ def main() -> None:
     window = MainWindow(store)
     window.show()
 
-    # Check for updates in background after a short delay
-    QTimer.singleShot(2000, lambda: threading.Thread(
-        target=_check_update_async, args=(window,), daemon=True
-    ).start())
+    # Check for updates in background — use a signal so the dialog is
+    # shown on the main thread (QTimer.singleShot from a non-main thread
+    # is not thread-safe and silently does nothing in PyQt6).
+    _update_sig = _UpdateSignal()
+    _update_sig.found.connect(lambda info: UpdateDialog(info, window).exec())
+
+    def _check():
+        info = check_for_update(GITHUB_REPO, __version__)
+        if info:
+            _update_sig.found.emit(info)
+
+    QTimer.singleShot(2000, lambda: threading.Thread(target=_check, daemon=True).start())
 
     sys.exit(app.exec())
 
