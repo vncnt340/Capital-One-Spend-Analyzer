@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, RED, TEXT_SECONDARY
 
 

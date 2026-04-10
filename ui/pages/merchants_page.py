@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 
 from core import analyzer
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, CHART_COLORS
 from ui.widgets.chart_canvas import ChartCanvas
 from ui.widgets.sortable_table import SortableTable
@@ -57,6 +58,7 @@ class MerchantsPage(QWidget):
         splitter.setSizes([350, 220])
         layout.addWidget(splitter)
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
         if df is None or df.empty:

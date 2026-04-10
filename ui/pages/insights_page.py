@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 
 from core.store import AppStore
 from core.insights import generate_insights
+from ui.safe_slot import safe_slot
 
 _SEVERITY_STYLES = {
     "good":    {"border": "#16A34A", "bg": "#F0FDF4", "badge_bg": "#16A34A", "badge_text": "#FFFFFF", "badge": "GOOD"},
@@ -67,6 +68,7 @@ class InsightsPage(QWidget):
         self._scroll.setWidget(self._content)
         outer.addWidget(self._scroll)
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
 

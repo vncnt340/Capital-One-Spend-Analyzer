@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import (
 
 from core import analyzer
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, CHART_COLORS
 from ui.widgets.metric_card import MetricCard
 from ui.widgets.chart_canvas import ChartCanvas
@@ -67,6 +68,7 @@ class OverviewPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
         if df is None or df.empty:

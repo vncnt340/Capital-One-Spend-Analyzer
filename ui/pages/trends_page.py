@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QScrollArea, QFrame
 
 from core import analyzer
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, CHART_COLORS, GREEN
 from ui.widgets.chart_canvas import ChartCanvas
 
@@ -57,6 +58,7 @@ class TrendsPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(scroll)
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
         if df is None or df.empty:

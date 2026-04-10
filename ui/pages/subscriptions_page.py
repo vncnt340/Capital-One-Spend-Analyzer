@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 
 from core import analyzer
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import GREEN, ORANGE, TEXT_SECONDARY
 from ui.widgets.metric_card import MetricCard
 
@@ -61,6 +62,7 @@ class SubscriptionsPage(QWidget):
         self._table.setSortingEnabled(True)
         layout.addWidget(self._table)
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
         if df is None or df.empty:

@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 
 from core import analyzer
 from core.store import AppStore
+from ui.safe_slot import safe_slot
 from ui.theme import ACCENT, CHART_COLORS, TEXT_SECONDARY
 from ui.widgets.chart_canvas import ChartCanvas
 from ui.widgets.sortable_table import SortableTable
@@ -140,6 +141,7 @@ class CategoriesPage(QWidget):
         layout.setContentsMargins(12, 12, 12, 8)
         return frame
 
+    @safe_slot
     def refresh(self) -> None:
         df = self._store.df
         if df is None or df.empty:
