@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import sys
+import traceback
 from pathlib import Path
 
 import pandas as pd
@@ -64,38 +66,46 @@ class AppStore(QObject):
 
     # ── Data loading ──────────────────────────────────────────────────────────
 
+    def _safe_emit(self, signal) -> None:
+        """Emit a signal, catching any Python exceptions from connected slots.
+        PyQt6 6.7+ calls abort() for unhandled slot exceptions; this prevents that."""
+        try:
+            signal.emit()
+        except Exception:
+            print(traceback.format_exc(), file=sys.stderr)
+
     def load_csv(self, path: str) -> None:
         """Load and tag CSV. Raises LoaderError on failure."""
         df = load_csv(path)
         df = apply_rules(df, self._rules)
         self._df = df
         self._csv_path = path
-        self.data_changed.emit()
+        self._safe_emit(self.data_changed)
 
     def reload_tags(self) -> None:
         """Re-apply current rules to loaded data without re-reading CSV."""
         if self._df is not None:
             self._df = apply_rules(self._df, self._rules)
-            self.data_changed.emit()
+            self._safe_emit(self.data_changed)
 
     # ── Rules CRUD ────────────────────────────────────────────────────────────
 
     def add_rule(self, keyword: str, sub_category: str, match_case: bool = False) -> None:
         self._rules.append({"keyword": keyword, "sub_category": sub_category, "match_case": match_case})
         _save_rules_to_disk(self._rules)
-        self.rules_changed.emit()
+        self._safe_emit(self.rules_changed)
         self.reload_tags()
 
     def update_rule(self, index: int, keyword: str, sub_category: str, match_case: bool = False) -> None:
         self._rules[index] = {"keyword": keyword, "sub_category": sub_category, "match_case": match_case}
         _save_rules_to_disk(self._rules)
-        self.rules_changed.emit()
+        self._safe_emit(self.rules_changed)
         self.reload_tags()
 
     def delete_rule(self, index: int) -> None:
         self._rules.pop(index)
         _save_rules_to_disk(self._rules)
-        self.rules_changed.emit()
+        self._safe_emit(self.rules_changed)
         self.reload_tags()
 
     def move_rule(self, index: int, direction: int) -> None:
@@ -103,5 +113,5 @@ class AppStore(QObject):
         if 0 <= new_index < len(self._rules):
             self._rules[index], self._rules[new_index] = self._rules[new_index], self._rules[index]
             _save_rules_to_disk(self._rules)
-            self.rules_changed.emit()
+            self._safe_emit(self.rules_changed)
             self.reload_tags()

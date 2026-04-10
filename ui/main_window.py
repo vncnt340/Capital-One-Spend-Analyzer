@@ -10,6 +10,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QKeySequence
 
+import traceback
+
 from core.loader import LoaderError
 from core.store import AppStore
 from ui.sidebar import Sidebar
@@ -131,6 +133,10 @@ class MainWindow(QMainWindow):
             self._store.load_csv(path)
         except LoaderError as e:
             QMessageBox.critical(self, "Import Failed", str(e))
+            return
+        except Exception:
+            QMessageBox.critical(self, "Import Failed",
+                                 f"Unexpected error loading CSV:\n\n{traceback.format_exc()}")
             return
 
         filename = os.path.basename(path)
